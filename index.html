@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PeopleDesk - Modern, responsive enterprise HR Employee Management System. Manage staff profiles, departments, and payroll with real-time MongoDB synchronization.">
+  <title>PeopleDesk | Enterprise Employee Management System</title>
+  
+  <!-- Modern Typography: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Server Connection Banner (Displayed if API is unreachable) -->
+  <div id="apiErrorBanner" class="api-error-banner hidden" role="alert">
+    <div class="banner-content">
+      <i data-lucide="alert-triangle" class="banner-icon"></i>
+      <div class="banner-text">
+        <strong>Server Connection Lost:</strong> Unable to connect to the backend API at <code id="apiEndpointLabel">http://localhost:5000/api</code>. Please ensure the backend and MongoDB are running.
+      </div>
+    </div>
+    <button id="retryConnectionBtn" class="btn btn-sm btn-outline-white">
+      <i data-lucide="refresh-cw" class="btn-icon"></i> Retry
+    </button>
+  </div>
+
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-logo">
+          <div class="brand-mark">
+            <i data-lucide="users"></i>
+          </div>
+          <div class="brand-info">
+            <span class="brand-name">PeopleDesk</span>
+            <span class="brand-pill">HR SaaS</span>
+          </div>
+        </div>
+        <button id="closeSidebarBtn" class="mobile-close-btn" aria-label="Close sidebar">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">MAIN MENU</div>
+        <a href="#dashboard" class="nav-item" data-view="dashboard" id="navDashboard">
+          <i data-lucide="layout-dashboard" class="nav-icon"></i>
+          <span class="nav-label">Dashboard</span>
+        </a>
+        <a href="#employees" class="nav-item active" data-view="employees" id="navEmployees">
+          <i data-lucide="user-check" class="nav-icon"></i>
+          <span class="nav-label">Employees</span>
+          <span id="navBadgeCount" class="nav-badge">0</span>
+        </a>
+        <a href="#departments" class="nav-item" data-view="departments" id="navDepartments">
+          <i data-lucide="building-2" class="nav-icon"></i>
+          <span class="nav-label">Departments</span>
+          <span class="nav-badge-pill" id="navDeptBadge">6 active</span>
+        </a>
+        <a href="#payroll" class="nav-item" data-view="payroll" id="navPayroll">
+          <i data-lucide="indian-rupee" class="nav-icon"></i>
+          <span class="nav-label">Payroll</span>
+        </a>
+      </nav>
+
+      <!-- HR Administrator Profile Area -->
+      <div class="sidebar-footer">
+        <div class="admin-profile-card">
+          <div class="admin-avatar">SS</div>
+          <div class="admin-details">
+            <span class="admin-name">Sanket Satras</span>
+            <span class="admin-role">HR Administrator</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mobile Overlay Backdrop -->
+    <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button id="mobileMenuBtn" class="mobile-toggle-btn" aria-label="Open navigation menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <div class="header-titles">
+            <h1 class="page-title" id="pageTitle">Employee Management</h1>
+            <p class="page-subtitle" id="pageSubtitle">Manage your team and employee records.</p>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="system-status-indicator" id="systemStatusPill" title="API Status">
+            <span class="status-dot"></span>
+            <span class="status-text" id="systemStatusText">Connecting...</span>
+          </div>
+          <button id="openAddModalBtn" class="btn btn-primary">
+            <i data-lucide="user-plus" class="btn-icon"></i>
+            <span>Add Employee</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Dashboard Container -->
+      <main class="content-container">
+        <!-- 1. EXECUTIVE DASHBOARD VIEW -->
+        <section id="viewDashboard" class="app-view hidden" aria-label="Executive HR Dashboard">
+          <!-- Top 4 Quick KPI Cards -->
+          <div class="summary-cards-grid">
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-blue-soft">
+                <i data-lucide="users" class="stat-icon text-primary"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Total Workforce</span>
+                <div class="stat-value-row">
+                  <h3 id="dashTotalStaff" class="stat-number">--</h3>
+                  <span class="stat-badge badge-active">Live DB</span>
+                </div>
+                <span class="stat-meta">Active team members</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-purple-soft">
+                <i data-lucide="network" class="stat-icon text-purple"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Active Departments</span>
+                <div class="stat-value-row">
+                  <h3 id="dashTotalDepts" class="stat-number">6</h3>
+                  <span class="stat-badge badge-neutral">of 6 total</span>
+                </div>
+                <span class="stat-meta">Across organization</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-emerald-soft">
+                <i data-lucide="badge-indian-rupee" class="stat-icon text-emerald"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Monthly Payroll</span>
+                <div class="stat-value-row">
+                  <h3 id="dashTotalPayroll" class="stat-number">₹0</h3>
+                </div>
+                <span class="stat-meta" id="dashAnnualPayroll">Run-rate: ₹0 / yr</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard 2-Column Analytics Grid -->
+          <div class="dashboard-analytics-grid">
+            <!-- Left: Department Headcount & Budget Allocation -->
+            <div class="analytics-card">
+              <div class="analytics-card-header">
+                <div class="card-header-titles">
+                  <h3 class="analytics-card-title">Department Allocation</h3>
+                  <p class="analytics-card-subtitle">Headcount and monthly payroll breakdown by department</p>
+                </div>
+                <button class="btn btn-sm btn-secondary" id="dashViewDeptsBtn">
+                  <span>View All Departments</span>
+                  <i data-lucide="arrow-right" class="btn-icon"></i>
+                </button>
+              </div>
+              <div class="analytics-card-body" id="dashDeptBarsContainer">
+                <!-- Rendered dynamically -->
+              </div>
+            </div>
+
+            <!-- Right: Workforce Insights & Quick Actions -->
+            <div class="analytics-card">
+              <div class="analytics-card-header">
+                <div class="card-header-titles">
+                  <h3 class="analytics-card-title">Salary Tier Spectrum</h3>
+                  <p class="analytics-card-subtitle">Distribution of compensation across seniority tiers</p>
+                </div>
+                <button class="btn btn-sm btn-secondary" id="dashViewPayrollBtn">
+                  <span>Payroll Ledger</span>
+                  <i data-lucide="arrow-right" class="btn-icon"></i>
+                </button>
+              </div>
+              <div class="analytics-card-body">
+                <div id="dashSalaryTiersContainer" class="salary-tiers-list">
+                  <!-- Rendered dynamically -->
+                </div>
+
+                <div class="quick-actions-box">
+                  <h4 class="quick-actions-title">Executive Shortcuts</h4>
+                  <div class="quick-actions-grid">
+                    <button class="quick-action-btn" id="dashAddEmployeeBtn" type="button">
+                      <i data-lucide="user-plus"></i>
+                      <span>Add Employee</span>
+                    </button>
+                    <button class="quick-action-btn" id="dashGoDirectoryBtn" type="button">
+                      <i data-lucide="users"></i>
+                      <span>Employee Directory</span>
+                    </button>
+                    <button class="quick-action-btn" id="dashGoPayrollBtn" type="button">
+                      <i data-lucide="indian-rupee"></i>
+                      <span>Payroll Analytics</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Hires Card -->
+          <div class="table-card">
+            <div class="analytics-card-header">
+              <div class="card-header-titles">
+                <h3 class="analytics-card-title">Recent Team Additions</h3>
+                <p class="analytics-card-subtitle">Latest employees onboarded into PeopleDesk</p>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="dashViewAllHiresBtn">
+                <span>Open Directory</span>
+                <i data-lucide="arrow-right" class="btn-icon"></i>
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="th-employee">Employee</th>
+                    <th scope="col" class="th-department">Department</th>
+                    <th scope="col" class="th-role">Job Role</th>
+                    <th scope="col" class="th-joindate">Joining Date</th>
+                    <th scope="col" class="th-salary">Monthly Salary</th>
+                  </tr>
+                </thead>
+                <tbody id="dashRecentHiresBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. EMPLOYEES DIRECTORY VIEW -->
+        <section id="viewEmployees" class="app-view active" aria-label="Employee Management Directory">
+          <!-- Dashboard Summary Cards -->
+          <section class="summary-cards-grid" aria-label="Dashboard Overview Metrics">
+            <!-- Total Employees -->
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-blue-soft">
+                <i data-lucide="users" class="stat-icon text-primary"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Total Employees</span>
+                <div class="stat-value-row">
+                  <h3 id="statTotalEmployees" class="stat-number">--</h3>
+                  <span class="stat-badge badge-active">Live DB</span>
+                </div>
+                <span class="stat-meta">Active team members</span>
+              </div>
+            </div>
+
+            <!-- Departments Represented -->
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-purple-soft">
+                <i data-lucide="network" class="stat-icon text-purple"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Departments Represented</span>
+                <div class="stat-value-row">
+                  <h3 id="statTotalDepartments" class="stat-number">--</h3>
+                  <span class="stat-badge badge-neutral">of 6 total</span>
+                </div>
+                <span class="stat-meta">Across organization</span>
+              </div>
+            </div>
+
+            <!-- Total Monthly Payroll -->
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-emerald-soft">
+                <i data-lucide="badge-indian-rupee" class="stat-icon text-emerald"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Total Monthly Payroll</span>
+                <div class="stat-value-row">
+                  <h3 id="statTotalPayroll" class="stat-number">₹0</h3>
+                </div>
+                <span class="stat-meta">Monthly recurring compensation (INR)</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Employee Directory Section -->
+          <section class="directory-section">
+            <!-- Directory Header & Controls -->
+            <div class="directory-toolbar">
+              <div class="search-box">
+                <i data-lucide="search" class="search-icon"></i>
+                <input 
+                  type="text" 
+                  id="searchInput" 
+                  class="search-input" 
+                  placeholder="Search by employee name, department, or job role..." 
+                  autocomplete="off"
+                  aria-label="Search employees"
+                >
+                <button id="clearSearchBtn" class="clear-search-btn hidden" aria-label="Clear search input">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+
+              <div class="toolbar-actions">
+                <div class="sort-select-wrapper">
+                  <label for="deptFilterSelect" class="sort-label">Department:</label>
+                  <select id="deptFilterSelect" class="form-select sort-select" aria-label="Filter employees by department">
+                    <option value="" selected>All Departments</option>
+                    <option value="IT">IT</option>
+                    <option value="HR">HR</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Operations">Operations</option>
+                  </select>
+                </div>
+
+                <div class="sort-select-wrapper">
+                  <label for="sortBySelect" class="sort-label">Sort by:</label>
+                  <select id="sortBySelect" class="form-select sort-select" aria-label="Sort employees by">
+                    <option value="createdAt:desc" selected>Recently Created</option>
+                    <option value="name:asc">Name (A → Z)</option>
+                    <option value="name:desc">Name (Z → A)</option>
+                    <option value="salary:desc">Salary (High to Low)</option>
+                    <option value="salary:asc">Salary (Low to High)</option>
+                    <option value="joinDate:desc">Joining Date (Newest)</option>
+                    <option value="joinDate:asc">Joining Date (Oldest)</option>
+                    <option value="department:asc">Department (A → Z)</option>
+                    <option value="role:asc">Job Role (A → Z)</option>
+                  </select>
+                </div>
+
+                <button id="refreshTableBtn" class="btn btn-secondary btn-icon-only" title="Refresh Table">
+                  <i data-lucide="rotate-cw"></i>
+                </button>
+              </div>
+            </div>
+
+
+            <!-- Table Container -->
+            <div class="table-card">
+              <div class="table-responsive">
+                <table class="data-table" id="employeesTable">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="th-employee">Employee</th>
+                      <th scope="col" class="th-department">Department</th>
+                      <th scope="col" class="th-role">Job Role</th>
+                      <th scope="col" class="th-salary">Monthly Salary</th>
+                      <th scope="col" class="th-joindate">Joining Date</th>
+                      <th scope="col" class="th-actions text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="employeesTableBody">
+                    <!-- Rendered dynamically via JavaScript -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Table Loading Skeleton State -->
+              <div id="tableLoadingState" class="state-overlay">
+                <div class="spinner-large"></div>
+                <p class="state-text">Loading employee records from MongoDB...</p>
+              </div>
+
+              <!-- Empty Directory State (No employees in DB) -->
+              <div id="emptyDirectoryState" class="empty-state hidden">
+                <div class="empty-state-icon">
+                  <i data-lucide="user-x"></i>
+                </div>
+                <h3 class="empty-state-title">No employees found</h3>
+                <p class="empty-state-desc">Your employee directory is currently empty. Get started by adding your first team member.</p>
+                <button class="btn btn-primary" id="emptyAddBtn">
+                  <i data-lucide="user-plus" class="btn-icon"></i> Add First Employee
+                </button>
+              </div>
+
+              <!-- No Search Results State -->
+              <div id="noSearchResultsState" class="empty-state hidden">
+                <div class="empty-state-icon">
+                  <i data-lucide="search-x"></i>
+                </div>
+                <h3 class="empty-state-title">No matching records found</h3>
+                <p class="empty-state-desc">We couldn't find any employees matching "<span id="noResultsQueryText"></span>". Try adjusting your search query or sorting filters.</p>
+                <button class="btn btn-secondary" id="resetSearchBtn">
+                  <i data-lucide="refresh-cw" class="btn-icon"></i> Clear Search
+                </button>
+              </div>
+
+              <!-- Table Footer with Result Stats -->
+              <div class="table-footer">
+                <div class="footer-count">
+                  Showing <span id="displayedCount">0</span> of <span id="totalMatchingCount">0</span> records
+                </div>
+                <div class="footer-database-note">
+                  <i data-lucide="database" class="footer-db-icon"></i>
+                  <span>Persistent MongoDB Storage</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- 3. DEPARTMENTS DIRECTORY VIEW -->
+        <section id="viewDepartments" class="app-view hidden" aria-label="Departments Directory">
+          <!-- Top Banner / Filter Info -->
+          <div class="departments-header-card">
+            <div class="dept-header-info">
+              <div class="dept-header-icon-wrap">
+                <i data-lucide="building-2"></i>
+              </div>
+              <div>
+                <h2 class="dept-header-title">Organizational Departments</h2>
+                <p class="dept-header-desc">Manage workforce by operational domain. Click on any department card to view and filter staff members.</p>
+              </div>
+            </div>
+            <div class="dept-header-stats">
+              <div class="dept-mini-stat">
+                <span class="dept-mini-label">Total Departments</span>
+                <span class="dept-mini-val" id="deptHeaderTotalDepts">6 Active</span>
+              </div>
+              <div class="dept-mini-stat">
+                <span class="dept-mini-label">Total Headcount</span>
+                <span class="dept-mini-val" id="deptHeaderTotalStaff">0</span>
+              </div>
+              <div class="dept-mini-stat">
+                <span class="dept-mini-label">Monthly Allocation</span>
+                <span class="dept-mini-val" id="deptHeaderTotalPayroll">₹0</span>
+              </div>
+              <button class="btn btn-primary" id="openAddDeptModalBtn" type="button">
+                <i data-lucide="plus-circle" class="btn-icon"></i>
+                <span>Add Department</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Grid of 6 Department Cards -->
+          <div class="departments-grid" id="departmentsGridContainer">
+            <!-- Rendered dynamically via JavaScript for IT, HR, Finance, Marketing, Sales, Operations -->
+          </div>
+        </section>
+
+        <!-- 4. PAYROLL ANALYTICS VIEW -->
+        <section id="viewPayroll" class="app-view hidden" aria-label="Payroll Analytics & Ledger">
+          <!-- Top 4 Payroll KPI Cards -->
+          <div class="summary-cards-grid four-cards">
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-emerald-soft">
+                <i data-lucide="badge-indian-rupee" class="stat-icon text-emerald"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Total Monthly Payroll</span>
+                <div class="stat-value-row">
+                  <h3 id="payrollStatMonthly" class="stat-number">₹0</h3>
+                </div>
+                <span class="stat-meta">Monthly recurring spend</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-blue-soft">
+                <i data-lucide="calculator" class="stat-icon text-primary"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Annual Run Rate</span>
+                <div class="stat-value-row">
+                  <h3 id="payrollStatAnnual" class="stat-number">₹0</h3>
+                </div>
+                <span class="stat-meta">Projected 12-month budget</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-purple-soft">
+                <i data-lucide="user-check" class="stat-icon text-purple"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Average Compensation</span>
+                <div class="stat-value-row">
+                  <h3 id="payrollStatAverage" class="stat-number">₹0</h3>
+                </div>
+                <span class="stat-meta">Per staff member / month</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-icon-wrapper bg-amber-soft">
+                <i data-lucide="award" class="stat-icon text-amber"></i>
+              </div>
+              <div class="stat-card-body">
+                <span class="stat-label">Highest Compensation</span>
+                <div class="stat-value-row">
+                  <h3 id="payrollStatHighest" class="stat-number">₹0</h3>
+                </div>
+                <span class="stat-meta" id="payrollStatHighestName">Top individual earner</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Department-wise Payroll Allocation Table Card -->
+          <div class="table-card">
+            <div class="analytics-card-header">
+              <div class="card-header-titles">
+                <h3 class="analytics-card-title">Department Payroll Breakdown</h3>
+                <p class="analytics-card-subtitle">Headcount, monthly expenditure, average salary, and budget share per department</p>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Department</th>
+                    <th scope="col">Headcount</th>
+                    <th scope="col">Monthly Expenditure</th>
+                    <th scope="col">Budget Share</th>
+                    <th scope="col">Avg. Monthly Salary</th>
+                    <th scope="col">Highest Department Earner</th>
+                    <th scope="col" class="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="payrollDeptTableBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Compensation Ledger (Sorted by Salary descending) -->
+          <div class="table-card">
+            <div class="analytics-card-header">
+              <div class="card-header-titles">
+                <h3 class="analytics-card-title">Employee Compensation Ledger</h3>
+                <p class="analytics-card-subtitle">Complete organizational payroll rank order and compensation shares</p>
+              </div>
+              <div class="card-header-actions">
+                <button class="btn btn-sm btn-outline-primary" id="exportPayrollCsvBtn" type="button" title="Download Payroll Ledger as CSV file">
+                  <i data-lucide="download" class="btn-icon"></i>
+                  <span>Export CSV</span>
+                </button>
+                <button class="btn btn-sm btn-secondary" id="payrollAddEmployeeBtn" type="button">
+                  <i data-lucide="user-plus" class="btn-icon"></i>
+                  <span>Add Employee</span>
+                </button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" style="width: 70px;">Rank</th>
+                    <th scope="col" class="th-employee">Employee</th>
+                    <th scope="col" class="th-department">Department</th>
+                    <th scope="col" class="th-role">Job Role</th>
+                    <th scope="col" class="th-salary">Monthly Salary</th>
+                    <th scope="col" style="min-width: 170px;">Share of Payroll</th>
+                    <th scope="col" class="th-joindate">Joining Date</th>
+                  </tr>
+                </thead>
+                <tbody id="payrollLedgerBody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Employee Modal (Shared for Add & Edit) -->
+  <div id="employeeModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-dialog modal-dialog-split">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-eyebrow-tag">
+            <i data-lucide="sparkles"></i>
+            <span>Workforce Registry</span>
+          </div>
+          <h2 id="modalTitle" class="modal-title">Add New Employee</h2>
+          <p id="modalSubtitle" class="modal-subtitle">Fill in the employee details below. All fields are required.</p>
+        </div>
+        <button id="closeModalBtn" class="modal-close-btn" aria-label="Close modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-split-body">
+        <form id="employeeForm" class="modal-form-col" novalidate>
+          <input type="hidden" id="employeeIdInput" name="id">
+
+          <div class="modal-body-fields">
+            <!-- Full Name Field -->
+            <div class="form-group">
+              <label for="fullNameInput" class="form-label">
+                Full Name <span class="required-indicator">*</span>
+              </label>
+              <div class="input-with-icon">
+                <i data-lucide="user" class="input-icon"></i>
+                <input 
+                  type="text" 
+                  id="fullNameInput" 
+                  name="name" 
+                  class="form-control" 
+                  placeholder="e.g. Aarav Sharma"
+                  maxlength="100" 
+                  required
+                >
+              </div>
+              <div id="nameError" class="field-error-msg hidden"></div>
+            </div>
+
+            <!-- Department Field -->
+            <div class="form-group">
+              <label for="departmentSelect" class="form-label">
+                Department <span class="required-indicator">*</span>
+              </label>
+              <div class="input-with-icon">
+                <i data-lucide="briefcase" class="input-icon"></i>
+                <select id="departmentSelect" name="department" class="form-control form-select" required>
+                  <option value="" disabled selected>Select department...</option>
+                  <option value="IT">IT</option>
+                  <option value="HR">HR</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Operations">Operations</option>
+                </select>
+              </div>
+              <div id="departmentError" class="field-error-msg hidden"></div>
+            </div>
+
+            <!-- Job Role Field -->
+            <div class="form-group">
+              <label for="roleInput" class="form-label">
+                Job Role <span class="required-indicator">*</span>
+              </label>
+              <div class="input-with-icon">
+                <i data-lucide="award" class="input-icon"></i>
+                <input 
+                  type="text" 
+                  id="roleInput" 
+                  name="role" 
+                  class="form-control" 
+                  placeholder="e.g. Senior Full Stack Engineer"
+                  maxlength="100" 
+                  required
+                >
+              </div>
+              <div id="roleError" class="field-error-msg hidden"></div>
+            </div>
+
+            <!-- Row: Monthly Salary and Joining Date -->
+            <div class="form-row">
+              <!-- Monthly Salary -->
+              <div class="form-group col-half">
+                <label for="salaryInput" class="form-label">
+                  Monthly Salary (₹ INR) <span class="required-indicator">*</span>
+                </label>
+                <div class="input-with-icon">
+                  <i data-lucide="indian-rupee" class="input-icon"></i>
+                  <input 
+                    type="number" 
+                    id="salaryInput" 
+                    name="salary" 
+                    class="form-control" 
+                    placeholder="e.g. 125000"
+                    min="0" 
+                    max="100000000" 
+                    step="1000"
+                    required
+                  >
+                </div>
+                <div id="salaryError" class="field-error-msg hidden"></div>
+              </div>
+
+              <!-- Joining Date -->
+              <div class="form-group col-half">
+                <label for="joinDateDisplay" class="form-label">
+                  Joining Date <span class="required-indicator">*</span> <span class="field-hint">(dd/mm/yy)</span>
+                </label>
+                <div class="input-with-icon date-input-container">
+                  <i data-lucide="calendar" class="input-icon"></i>
+                  <input 
+                    type="text" 
+                    id="joinDateDisplay" 
+                    class="form-control" 
+                    placeholder="dd/mm/yy" 
+                    maxlength="8"
+                    autocomplete="off"
+                    required
+                  >
+                  <input 
+                    type="date" 
+                    id="nativeDatePicker" 
+                    class="native-date-hidden" 
+                    tabindex="-1"
+                  >
+                  <button 
+                    type="button" 
+                    id="openCalendarBtn" 
+                    class="date-picker-trigger-btn" 
+                    title="Open Calendar Picker"
+                    aria-label="Open Calendar Picker"
+                  >
+                    <i data-lucide="calendar-days"></i>
+                  </button>
+                  <input type="hidden" id="joinDateInput" name="joinDate">
+                </div>
+                <div id="joinDateError" class="field-error-msg hidden"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="cancelModalBtn" class="btn btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" id="saveEmployeeBtn" class="btn btn-primary">
+              <span class="btn-spinner hidden" id="saveBtnSpinner"></span>
+              <i data-lucide="check" class="btn-icon" id="saveBtnIcon"></i>
+              <span id="saveBtnText">Save Employee</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Signature Element: Live ID Badge Preview Card -->
+        <aside class="modal-preview-aside" aria-label="Real-time ID badge preview">
+          <div class="preview-panel-header">
+            <span class="preview-eyebrow">LIVE ID BADGE PREVIEW</span>
+            <span class="preview-status-pill"><span class="preview-dot"></span> LIVE SYNC</span>
+          </div>
+          <div class="id-badge-card" id="modalLiveBadgePreview">
+            <div class="id-badge-mesh"></div>
+            <div class="id-badge-top">
+              <div class="id-badge-brand">
+                <i data-lucide="shield-check" class="id-badge-logo-icon"></i>
+                <span>PEOPLEDESK ID</span>
+              </div>
+              <span class="id-badge-chip">VERIFIED</span>
+            </div>
+            
+            <div class="id-badge-avatar-wrap">
+              <div class="id-badge-avatar" id="previewBadgeAvatar">EP</div>
+            </div>
+            
+            <div class="id-badge-identity">
+              <h4 class="id-badge-name" id="previewBadgeName">Employee Name</h4>
+              <p class="id-badge-role" id="previewBadgeRole">Job Role Title</p>
+            </div>
+
+            <div class="id-badge-dept-row">
+              <span class="dept-badge badge-neutral" id="previewBadgeDept">Department</span>
+            </div>
+
+            <div class="id-badge-meta-grid">
+              <div class="id-badge-meta-item">
+                <span class="id-meta-label">MONTHLY COMPENSATION</span>
+                <span class="id-meta-value font-mono" id="previewBadgeSalary">₹0 / mo</span>
+              </div>
+              <div class="id-badge-meta-item text-right">
+                <span class="id-meta-label">JOINING DATE</span>
+                <span class="id-meta-value font-mono" id="previewBadgeDate">dd/mm/yy</span>
+              </div>
+            </div>
+
+            <div class="id-badge-barcode">
+              <div class="barcode-lines"></div>
+              <span class="barcode-code">HR-AUTHORIZED CREDENTIAL</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+    <div class="modal-dialog modal-dialog-sm">
+      <div class="modal-header border-none pb-0">
+        <div class="delete-icon-wrapper">
+          <i data-lucide="alert-triangle" class="delete-warning-icon"></i>
+        </div>
+        <button id="closeDeleteModalBtn" class="modal-close-btn" aria-label="Close delete dialog">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body text-center pt-0">
+        <h3 id="deleteModalTitle" class="delete-modal-title">Delete Employee Record</h3>
+        <p class="delete-modal-desc">
+          Are you sure you want to delete <strong id="deleteEmployeeName" class="text-navy"></strong>?
+        </p>
+        <div class="delete-warning-box">
+          <i data-lucide="info" class="warning-box-icon"></i>
+          <span>This action cannot be undone. The employee record will be permanently deleted from MongoDB.</span>
+        </div>
+      </div>
+
+      <div class="modal-footer justify-center">
+        <button type="button" id="cancelDeleteBtn" class="btn btn-secondary">
+          Cancel
+        </button>
+        <button type="button" id="confirmDeleteBtn" class="btn btn-danger">
+          <span class="btn-spinner hidden" id="deleteBtnSpinner"></span>
+          <i data-lucide="trash-2" class="btn-icon" id="deleteBtnIcon"></i>
+          <span id="deleteBtnText">Delete Employee</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Department Confirmation Modal -->
+  <div id="deleteDeptModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteDeptModalTitle">
+    <div class="modal-dialog modal-dialog-sm">
+      <div class="modal-header border-none pb-0">
+        <div class="delete-icon-wrapper">
+          <i data-lucide="alert-triangle" class="delete-warning-icon"></i>
+        </div>
+        <button id="closeDeleteDeptModalBtn" class="modal-close-btn" aria-label="Close delete department dialog">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body text-center pt-0">
+        <h3 id="deleteDeptModalTitle" class="delete-modal-title">Delete Department</h3>
+        <p class="delete-modal-desc">
+          Are you sure you want to delete <strong id="deleteDeptName" class="text-navy"></strong>?
+        </p>
+        <div class="delete-warning-box" id="deleteDeptWarningBox">
+          <i data-lucide="info" class="warning-box-icon"></i>
+          <span id="deleteDeptWarningText">This department will be permanently removed from the organizational directory.</span>
+        </div>
+      </div>
+
+      <div class="modal-footer justify-center">
+        <button type="button" id="cancelDeleteDeptBtn" class="btn btn-secondary">
+          Cancel
+        </button>
+        <button type="button" id="confirmDeleteDeptBtn" class="btn btn-danger">
+          <span class="btn-spinner hidden" id="deleteDeptBtnSpinner"></span>
+          <i data-lucide="trash-2" class="btn-icon" id="deleteDeptBtnIcon"></i>
+          <span id="deleteDeptBtnText">Delete Department</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Department Modal -->
+  <div id="departmentModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deptModalTitle">
+    <div class="modal-dialog modal-dialog-dept">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-eyebrow-tag">
+            <i data-lucide="building-2"></i>
+            <span>Enterprise Structure</span>
+          </div>
+          <h2 id="deptModalTitle" class="modal-title">Add New Department</h2>
+          <p class="modal-subtitle">Create an organizational domain and configure its team identity.</p>
+        </div>
+        <button id="closeDeptModalBtn" class="modal-close-btn" aria-label="Close modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <form id="departmentForm" novalidate>
+        <div class="modal-body">
+          <!-- Department Name Field -->
+          <div class="form-group">
+            <label for="deptNameInput" class="form-label">
+              Department Name <span class="required-indicator">*</span>
+            </label>
+            <div class="input-with-icon">
+              <i data-lucide="building-2" class="input-icon"></i>
+              <input 
+                type="text" 
+                id="deptNameInput" 
+                name="name" 
+                class="form-control" 
+                placeholder="e.g. Design & Creative, Legal, QA, Engineering..."
+                maxlength="50" 
+                required
+              >
+            </div>
+            <div id="deptNameError" class="field-error-msg hidden"></div>
+          </div>
+
+          <!-- Operational Mission / Description -->
+          <div class="form-group">
+            <label for="deptDescInput" class="form-label">
+              Operational Scope & Mission
+            </label>
+            <div class="input-with-icon">
+              <i data-lucide="align-left" class="input-icon"></i>
+              <input 
+                type="text" 
+                id="deptDescInput" 
+                name="desc" 
+                class="form-control" 
+                placeholder="e.g. Product design, user research, and brand systems"
+                maxlength="120"
+              >
+            </div>
+          </div>
+
+          <!-- Icon Selection Chips -->
+          <div class="form-group">
+            <label class="form-label">
+              Department Emblem <span class="field-hint">(Select an emblem icon)</span>
+            </label>
+            <div class="dept-icon-picker" id="deptIconPicker">
+              <button type="button" class="icon-picker-chip" data-icon="laptop" title="Laptop / Tech"><i data-lucide="laptop"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="users" title="Users / People"><i data-lucide="users"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="calculator" title="Calculator / Finance"><i data-lucide="calculator"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="megaphone" title="Megaphone / Marketing"><i data-lucide="megaphone"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="trending-up" title="Trending Up / Sales"><i data-lucide="trending-up"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="layers" title="Layers / Operations"><i data-lucide="layers"></i></button>
+              <button type="button" class="icon-picker-chip active" data-icon="palette" title="Palette / Design"><i data-lucide="palette"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="shield-check" title="Shield / QA & Legal"><i data-lucide="shield-check"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="code-2" title="Code / Engineering"><i data-lucide="code-2"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="headphones" title="Headphones / Support"><i data-lucide="headphones"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="sparkles" title="Sparkles / AI & Innovation"><i data-lucide="sparkles"></i></button>
+              <button type="button" class="icon-picker-chip" data-icon="building-2" title="Building / Enterprise"><i data-lucide="building-2"></i></button>
+            </div>
+            <input type="hidden" id="deptSelectedIcon" name="icon" value="palette">
+            <input type="hidden" id="deptSelectedColor" name="color" value="#DB2777">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="cancelDeptModalBtn" class="btn btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" id="saveDeptBtn" class="btn btn-primary">
+            <span class="btn-spinner hidden" id="saveDeptSpinner"></span>
+            <i data-lucide="check" class="btn-icon" id="saveDeptIcon"></i>
+            <span id="saveDeptText">Create Department</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main JavaScript App Logic -->
+  <script src="script.js"></script>
+</body>
+</html>
