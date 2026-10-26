@@ -11,7 +11,7 @@
   // 1. Configuration & Global State
   // =========================================================================
   const CONFIG = {
-    API_BASE_URL: 'http://localhost:5000/api',
+    API_BASE_URL: 'https://peopledesk-api.onrender.com/api',,
     DEBOUNCE_DELAY_MS: 300,
     TOAST_DURATION_MS: 4000,
     CURRENCY_LOCALE: 'en-IN',
