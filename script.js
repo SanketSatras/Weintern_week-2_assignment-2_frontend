@@ -10,8 +10,27 @@
   // =========================================================================
   // 1. Configuration & Global State
   // =========================================================================
+  // Automatically detect API Base URL:
+  // - Local development (localhost / 127.0.0.1) -> http://localhost:5000/api
+  // - GitHub Pages / Production -> https://weintern-week-2-assignment-2-backend.onrender.com/api
+  const detectApiBaseUrl = () => {
+    try {
+      const manualUrl = localStorage.getItem('peopledesk_api_url');
+      if (manualUrl) return manualUrl;
+    } catch (e) {}
+
+    const isLocal = Boolean(
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    );
+
+    return isLocal
+      ? 'http://localhost:5000/api'
+      : 'https://weintern-week-2-assignment-2-backend.onrender.com/api';
+  };
+
   const CONFIG = {
-    API_BASE_URL: 'https://peopledesk-api.onrender.com/api',,
+    API_BASE_URL: detectApiBaseUrl(),
     DEBOUNCE_DELAY_MS: 300,
     TOAST_DURATION_MS: 4000,
     CURRENCY_LOCALE: 'en-IN',
@@ -546,6 +565,9 @@
    */
   function setSystemStatus(isOnline, customText = null) {
     state.isApiOnline = isOnline;
+    if (DOM.apiEndpointLabel) {
+      DOM.apiEndpointLabel.textContent = CONFIG.API_BASE_URL;
+    }
     if (isOnline) {
       DOM.systemStatusPill.className = 'system-status-indicator connected';
       DOM.systemStatusText.textContent = 'MongoDB Connected';
